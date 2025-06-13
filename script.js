@@ -13,7 +13,7 @@ function initPad() {
   document.getElementById("clear").onclick = () => signaturePad.clear();
   document.getElementById("save-sig").onclick = () => {
     if (signaturePad.isEmpty()) {
-      alert("Sign first");
+      alert("서명을 먼저 해주세요");
       return;
     }
     sigDataURL = signaturePad.toDataURL();
@@ -51,7 +51,7 @@ async function renderPreview() {
     canvas.onclick = (ev) => {
       selectedPage = Number(canvas.dataset.idx);
       clickPos = { x: ev.offsetX, y: ev.offsetY, view: viewport };
-      alert("Position saved!  ➡️  이제 “Add Signature” 클릭");
+      alert("해당 위치에 서명을 추가합니다.  ➡️  이제 “+ 서명추가” 버튼을 클릭하세요");
     };
     wrap.appendChild(canvas);
   }
@@ -60,7 +60,7 @@ async function renderPreview() {
 /* ===== 서명 입력 모달 열기 ===== */
 document.getElementById("open-pad").onclick = () => {
   if (!pdfDoc) {
-    alert("Load PDF first");
+    alert("PDF를 먼저 업로드해주세요");
     return;
   }
   document.getElementById("pad-wrapper").classList.remove("hidden");
@@ -71,7 +71,7 @@ document.getElementById("open-pad").onclick = () => {
 /* ===== 최종 PDF 생성 & 다운로드 ===== */
 document.getElementById("download").onclick = async () => {
   if (!sigDataURL || !clickPos) {
-    alert("Need both position & signature");
+    alert("위치를 지정하시고, 서명하신 뒤 다시 시도하세요");
     return;
   }
   const { x, y, view } = clickPos;
@@ -96,7 +96,7 @@ document.getElementById("download").onclick = async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "signed.pdf";
+  a.download = "서명 추가본.pdf";
   a.click();
   URL.revokeObjectURL(url);
 };
