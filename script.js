@@ -101,7 +101,7 @@ document.getElementById("download").onclick = async () => {
 
   // 사용자 요청에 따른 평행이동 적용 (가로로 -0.05x, 세로로 +0.05y)
   const offsetX = -0.15 * page.getWidth();
-  const offsetY = 0.1 * page.getHeight();
+  const offsetY = 0.05 * page.getHeight();
 
   pdfX += offsetX;
   pdfY += offsetY;
