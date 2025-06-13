@@ -40,7 +40,7 @@ async function renderPreview() {
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.0 }); // 명시적 스케일 설정
+    const viewport = page.getViewport({ scale: 1.0 });
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -92,13 +92,22 @@ document.getElementById("download").onclick = async () => {
   const png = await pdfDoc.embedPng(sigDataURL);
   const dims = png.scale(0.5);
 
-  // 매우 정확한 캔버스 좌표 → PDF 좌표 변환
+  // 정확한 캔버스 좌표 → PDF 좌표 변환
   const scaleX = page.getWidth() / canvasWidth;
   const scaleY = page.getHeight() / canvasHeight;
-  const pdfX = x * scaleX;
-  const pdfY = page.getHeight() - y * scaleY - dims.height;
+
+  let pdfX = x * scaleX;
+  let pdfY = page.getHeight() - y * scaleY - dims.height;
+
+  // 사용자 요청에 따른 평행이동 적용 (가로로 -0.05x, 세로로 +0.05y)
+  const offsetX = -0.05 * page.getWidth();
+  const offsetY = 0.05 * page.getHeight();
+
+  pdfX += offsetX;
+  pdfY += offsetY;
 
   page.drawImage(png, { x: pdfX, y: pdfY, width: dims.width, height: dims.height });
+
   const bytes = await pdfDoc.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
