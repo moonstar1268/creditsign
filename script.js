@@ -1,108 +1,94 @@
 /* ===== 전역 변수 ===== */
-let pdfDoc = null,
-  pdfBytes = null;
-let signaturePad = null,
-  sigDataURL = null;
-let selectedPage = 0,
-  clickPos = null;
+let pdfDoc=null, pdfBytes=null;
+let signaturePad=null, sigDataURL=null;
+let selectedPage=0, clickPos=null;
 
 /* ===== 서명패드 초기화 ===== */
-function initPad() {
-  const canvas = document.getElementById("sig-canvas");
-  signaturePad = new SignaturePad(canvas);
-  document.getElementById("clear").onclick = () => signaturePad.clear();
-  document.getElementById("save-sig").onclick = () => {
-    if (signaturePad.isEmpty()) {
-      alert("서명을 먼저 해주세요");
-      return;
-    }
-    sigDataURL = signaturePad.toDataURL();
-    document.getElementById("pad-wrapper").classList.add("hidden");
-    document.getElementById("download").disabled = false;
+function initPad(){
+  const canvas=document.getElementById('sig-canvas');
+  signaturePad=new SignaturePad(canvas);
+  document.getElementById('clear').onclick=()=>signaturePad.clear();
+  document.getElementById('save-sig').onclick=()=>{
+    if(signaturePad.isEmpty()){alert('서명을 입력해주세요');return;}
+    sigDataURL=signaturePad.toDataURL();
+    document.getElementById('pad-wrapper').classList.add('hidden');
+    document.getElementById('download').disabled=false;
   };
 }
 
 /* ===== PDF 업로드 & 미리보기 ===== */
-document.getElementById("file-input").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  pdfBytes = await file.arrayBuffer();
-  pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+document.getElementById('file-input').addEventListener('change',async(e)=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  pdfBytes=await file.arrayBuffer();
+  pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
   await renderPreview();
-  document.getElementById("open-pad").disabled = false;
+  document.getElementById('open-pad').disabled=false;
 });
 
-async function renderPreview() {
-  const wrap = document.getElementById("pdf-preview");
-  wrap.innerHTML = "";
-  const task = pdfjsLib.getDocument({ data: pdfBytes });
-  const pdf = await task.promise;
+async function renderPreview(){
+  const wrap=document.getElementById('pdf-preview');
+  wrap.innerHTML='';
+  const task=pdfjsLib.getDocument({data:pdfBytes});
+  const pdf=await task.promise;
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 0.8 });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport })
-      .promise;
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const viewport=page.getViewport({scale:1.0}); // 스케일 명시적 설정
+    const canvas=document.createElement('canvas');
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
 
-    canvas.dataset.idx = i - 1;
-    canvas.onclick = (ev) => {
-      selectedPage = Number(canvas.dataset.idx);
-      clickPos = { x: ev.offsetX, y: ev.offsetY, view: viewport };
-      alert("해당 위치에 서명을 추가합니다.  ➡️  이제 “+ 서명추가” 버튼을 클릭하세요");
+    canvas.dataset.idx=i-1;
+    canvas.onclick=(ev)=>{
+      const rect = canvas.getBoundingClientRect();
+      selectedPage=Number(canvas.dataset.idx);
+      clickPos={
+        x: ev.clientX - rect.left,
+        y: ev.clientY - rect.top,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        pageWidth: viewport.width,
+        pageHeight: viewport.height
+      };
+      alert('서명 위치가 저장되었습니다 ➡️ "서명 추가"를 클릭해주세요');
     };
     wrap.appendChild(canvas);
   }
 }
 
 /* ===== 서명 입력 모달 열기 ===== */
-document.getElementById("open-pad").onclick = () => {
-  if (!pdfDoc) {
-    alert("PDF를 먼저 업로드해주세요");
-    return;
-  }
-  document.getElementById("pad-wrapper").classList.remove("hidden");
-  if (!signaturePad) initPad();
+document.getElementById('open-pad').onclick=()=>{
+  if(!pdfDoc){alert('먼저 PDF를 업로드해주세요');return;}
+  document.getElementById('pad-wrapper').classList.remove('hidden');
+  if(!signaturePad) initPad();
   signaturePad.clear();
 };
 
 /* ===== 최종 PDF 생성 & 다운로드 ===== */
-document.getElementById("download").onclick = async () => {
-  if (!sigDataURL || !clickPos) {
-    alert("위치를 지정하시고, 서명하신 뒤 다시 시도하세요");
-    return;
-  }
-  const { x, y, view } = clickPos;
-  const page = pdfDoc.getPages()[selectedPage];
-  const png = await pdfDoc.embedPng(sigDataURL);
-  const dims = png.scale(0.5);
+document.getElementById('download').onclick=async()=>{
+  if(!sigDataURL||!clickPos){alert('서명과 위치가 모두 필요합니다');return;}
+  const {x,y,canvasWidth,canvasHeight,pageWidth,pageHeight}=clickPos;
+  const page=pdfDoc.getPages()[selectedPage];
+  const png=await pdfDoc.embedPng(sigDataURL);
+  const dims=png.scale(0.5);
 
-  /* 캔버스 좌표 → PDF 좌표 변환 */
-  const scaleX = page.getWidth() / view.width;
-  const scaleY = page.getHeight() / view.height;
-  const pdfX = x * scaleX;
-  const pdfY = page.getHeight() - y * scaleY - dims.height;
+  // 캔버스 좌표 → PDF 좌표 변환 (정확한 비율로 변환)
+  const scaleX=page.getWidth()/canvasWidth;
+  const scaleY=page.getHeight()/canvasHeight;
+  const pdfX=x*scaleX;
+  const pdfY=page.getHeight()-y*scaleY-dims.height;
 
-  page.drawImage(png, {
-    x: pdfX,
-    y: pdfY,
-    width: dims.width,
-    height: dims.height,
-  });
-  const bytes = await pdfDoc.save();
-  const blob = new Blob([bytes], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "서명 추가본.pdf";
-  a.click();
+  page.drawImage(png,{x:pdfX,y:pdfY,width:dims.width,height:dims.height});
+  const bytes=await pdfDoc.save();
+  const blob=new Blob([bytes],{type:'application/pdf'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='signed.pdf'; a.click();
   URL.revokeObjectURL(url);
 };
 
 /* ===== PDF.js 워커 경로 설정 ===== */
-window.onload = () => {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+window.onload=()=>{
+  pdfjsLib.GlobalWorkerOptions.workerSrc=
+   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 };
