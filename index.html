@@ -1,32 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Simple PDF Signer</title>
-  <link rel="stylesheet" href="styles.css" />
+  <head>
+    <meta charset="utf-8" />
+    <title>CreditSign</title>
+    <link rel="stylesheet" href="styles.css" />
 
-  <!-- 라이브러리 CDN -->
-  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>        <!-- pdf-lib → PDF 수정용 --> 
-  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script> <!-- signature_pad → 서명 캡처 --> 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>              <!-- PDF.js → 미리보기 -->
-</head>
+    <!-- 라이브러리 CDN -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <!-- pdf-lib → PDF 수정용 -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script>
+    <!-- signature_pad → 서명 캡처 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- PDF.js → 미리보기 -->
+  </head>
 
-<body>
-  <h1>PDF Signer (No‑Server)</h1>
+  <body>
+    <h1>CreditSign</h1>
 
-  <input type="file" id="file-input" accept="application/pdf" />
-  <div id="pdf-preview"></div>
+    <input type="file" id="file-input" accept="application/pdf" />
+    <div id="pdf-preview"></div>
 
-  <button id="open-pad" disabled>➕ Add Signature</button>
-  <button id="download" disabled>⬇️ Download Signed PDF</button>
+    <button id="open-pad" disabled>➕ 서명 추가</button>
+    <button id="download" disabled>⬇️ 서명된 문서 다운로드</button>
 
-  <!-- 서명 입력창(모달) -->
-  <div id="pad-wrapper" class="hidden">
-    <canvas id="sig-canvas"></canvas><br />
-    <button id="clear">Clear</button>
-    <button id="save-sig">Save Signature</button>
-  </div>
+    <!-- 서명 입력창(모달) -->
+    <div id="pad-wrapper" class="hidden">
+      <canvas id="sig-canvas"></canvas><br />
+      <button id="clear">Clear</button>
+      <button id="save-sig">Save Signature</button>
+    </div>
 
-  <script src="script.js"></script>
-</body>
+    <script src="script.js"></script>
+  </body>
 </html>
