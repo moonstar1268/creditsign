@@ -4,11 +4,17 @@
   <meta charset="utf-8" />
   <title>CreditSign</title>
   <link rel="stylesheet" href="styles.css" />
-
+  
   <!-- 라이브러리 CDN -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>        
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>              
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  
+  <style>
+    #pdf-preview canvas {border:1px solid #ccc; margin-bottom:10px;}
+    .hidden {display:none;}
+    #text-input {position:absolute; font-size:16px; padding:4px;}
+  </style>
 </head>
 
 <body>
@@ -19,10 +25,14 @@
   <button id="form2-tab">양식 2</button>
   <br><br>
 
-  <div id="pdf-preview"></div>
-
+  <button id="text-add">📝 텍스트 추가</button>
   <button id="open-pad" disabled>➕ 서명 추가</button>
   <button id="download" disabled>⬇️ 서명된 문서 다운로드</button>
+
+  <div id="pdf-preview"></div>
+
+  <!-- 텍스트 입력상자 (숨겨짐) -->
+  <input type="text" id="text-input" class="hidden">
 
   <!-- 서명 입력창(모달) -->
   <div id="pad-wrapper" class="hidden">
@@ -37,13 +47,13 @@
   </footer>
 
 <script>
-  // PDF 파일 URL 설정 (CORS 프록시로 감싸기)
   const pdfUrls = {
     "양식 1": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf",
     "양식 2": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/92b2d1f8901301b66d242b6efe5f0cae20cd75db/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%202.pdf"
   };
 
-  let pdfDoc = null, pdfBytes = null;
+  let pdfDoc = null, pdfBytes = null, selectedPage = 0, textMode = false;
+  const textEntries = [];
 
   async function loadDefaultPDF(name){
     const pdfResponse = await fetch(pdfUrls[name]);
@@ -51,14 +61,13 @@
     pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
     await renderPreview();
     document.getElementById("open-pad").disabled = false;
+    document.getElementById("download").disabled = false;
   }
 
-  // PDF 렌더링
   async function renderPreview(){
     const wrap=document.getElementById("pdf-preview");
     wrap.innerHTML='';
-    const task=pdfjsLib.getDocument({data:pdfBytes});
-    const pdf=await task.promise;
+    const pdf=await pdfjsLib.getDocument({data:pdfBytes}).promise;
 
     for(let i=1;i<=pdf.numPages;i++){
       const page=await pdf.getPage(i);
@@ -66,23 +75,72 @@
       const canvas=document.createElement("canvas");
       canvas.width=viewport.width; canvas.height=viewport.height;
       await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+      canvas.dataset.pageIndex=i-1;
+      canvas.onclick=canvasClickHandler;
       wrap.appendChild(canvas);
     }
   }
 
-  // 페이지 로딩시 기본 PDF 로드 (양식 1)
+  function canvasClickHandler(e){
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    selectedPage = parseInt(canvas.dataset.pageIndex);
+
+    if(textMode){
+      const input=document.getElementById("text-input");
+      input.style.left=e.clientX+'px';
+      input.style.top=e.clientY+'px';
+      input.value='';
+      input.classList.remove('hidden');
+      input.focus();
+
+      input.onkeydown=(ev)=>{
+        if(ev.key==="Enter"){
+          const ctx=canvas.getContext("2d");
+          ctx.font="16px Arial";
+          ctx.fillText(input.value,x,y);
+          textEntries.push({text:input.value,x,y,page:selectedPage});
+          input.classList.add('hidden');
+          input.value='';
+          textMode=false;
+        }
+      };
+    }
+  }
+
   window.onload = () => {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
     loadDefaultPDF("양식 1");
   };
 
-  // 탭 클릭 이벤트 연결
   document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
   document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
+
+  document.getElementById("text-add").onclick=()=>{
+    textMode=true;
+    alert("PDF에서 텍스트를 추가할 위치를 클릭해주세요.");
+  };
+
+  document.getElementById("download").onclick=async()=>{
+    textEntries.forEach(t=>{
+      const page=pdfDoc.getPages()[t.page];
+      page.drawText(t.text,{x:t.x,y:page.getHeight()-t.y-16,size:12});
+    });
+
+    const finalPdfBytes=await pdfDoc.save();
+    const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download="signed.pdf";a.click();
+    URL.revokeObjectURL(url);
+  };
 </script>
 
-
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
