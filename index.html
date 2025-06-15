@@ -14,7 +14,11 @@
 <body>
   <h1>CreditSign</h1>
 
-  <input type="file" id="file-input" accept="application/pdf" />
+  <!-- 양식 탭 버튼 추가 -->
+  <button id="form1-tab">양식 1</button>
+  <button id="form2-tab">양식 2</button>
+  <br><br>
+
   <div id="pdf-preview"></div>
 
   <button id="open-pad" disabled>➕ 서명 추가</button>
@@ -27,11 +31,32 @@
     <button id="save-sig">Save Signature</button>
   </div>
 
-  <script src="script.js"></script>
-
-  <!-- 저작권 문구 추가된 부분 -->
+  <!-- 저작권 문구 -->
   <footer style="margin-top:20px; font-size:14px; color:#666;">
     Copyright (C) 한국금융범죄예방연구센터. All rights reserved.
   </footer>
-</body>
-</html>
+
+  <script>
+    // PDF 파일 URL 설정 (네가 얻은 링크를 여기에 붙여넣기)
+    const pdfUrls = {
+      "양식 1": "https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf
+",
+      "양식 2": "https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf
+"
+    };
+
+    let pdfDoc = null, pdfBytes = null;
+
+    async function loadDefaultPDF(name){
+      const pdfResponse = await fetch(pdfUrls[name]);
+      pdfBytes = await pdfResponse.arrayBuffer();
+      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+      await renderPreview();
+      document.getElementById("open-pad").disabled = false;
+    }
+
+    // PDF 렌더링
+    async function renderPreview(){
+      const wrap=document.getElementById("pdf-preview");
+      wrap.innerHTML='';
+      const task=pdfjsLib.getDocument({data:pdfBytes});
