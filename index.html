@@ -36,51 +36,52 @@
     Copyright (C) 한국금융범죄예방연구센터. All rights reserved.
   </footer>
 
-  <script>
-    // PDF 파일 URL 설정 (네가 얻은 링크를 여기에 붙여넣기)
-    const pdfUrls = {
-      "양식 1": "https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf",
-      "양식 2": "https://github.com/moonstar1268/creditsign/raw/92b2d1f8901301b66d242b6efe5f0cae20cd75db/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%202.pdf"
-    };
+<script>
+  // PDF 파일 URL 설정 (CORS 프록시로 감싸기)
+  const pdfUrls = {
+    "양식 1": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf",
+    "양식 2": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/92b2d1f8901301b66d242b6efe5f0cae20cd75db/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%202.pdf"
+  };
 
-    let pdfDoc = null, pdfBytes = null;
+  let pdfDoc = null, pdfBytes = null;
 
-    async function loadDefaultPDF(name){
-      const pdfResponse = await fetch(pdfUrls[name]);
-      pdfBytes = await pdfResponse.arrayBuffer();
-      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-      await renderPreview();
-      document.getElementById("open-pad").disabled = false;
+  async function loadDefaultPDF(name){
+    const pdfResponse = await fetch(pdfUrls[name]);
+    pdfBytes = await pdfResponse.arrayBuffer();
+    pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+    await renderPreview();
+    document.getElementById("open-pad").disabled = false;
+  }
+
+  // PDF 렌더링
+  async function renderPreview(){
+    const wrap=document.getElementById("pdf-preview");
+    wrap.innerHTML='';
+    const task=pdfjsLib.getDocument({data:pdfBytes});
+    const pdf=await task.promise;
+
+    for(let i=1;i<=pdf.numPages;i++){
+      const page=await pdf.getPage(i);
+      const viewport=page.getViewport({scale:1.0});
+      const canvas=document.createElement("canvas");
+      canvas.width=viewport.width; canvas.height=viewport.height;
+      await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+      wrap.appendChild(canvas);
     }
+  }
 
-    // PDF 렌더링
-    async function renderPreview(){
-      const wrap=document.getElementById("pdf-preview");
-      wrap.innerHTML='';
-      const task=pdfjsLib.getDocument({data:pdfBytes});
-      const pdf=await task.promise;
+  // 페이지 로딩시 기본 PDF 로드 (양식 1)
+  window.onload = () => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+    loadDefaultPDF("양식 1");
+  };
 
-      for(let i=1;i<=pdf.numPages;i++){
-        const page=await pdf.getPage(i);
-        const viewport=page.getViewport({scale:1.0});
-        const canvas=document.createElement("canvas");
-        canvas.width=viewport.width; canvas.height=viewport.height;
-        await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
-        wrap.appendChild(canvas);
-      }
-    }
+  // 탭 클릭 이벤트 연결
+  document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
+  document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
+</script>
 
-    // 페이지 로딩시 기본 PDF 로드 (양식 1)
-    window.onload = () => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-      loadDefaultPDF("양식 1");
-    };
-
-    // 탭 클릭 이벤트 연결
-    document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
-    document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
-  </script>
 
   <script src="script.js"></script>
 </body>
