@@ -59,3 +59,30 @@
       const wrap=document.getElementById("pdf-preview");
       wrap.innerHTML='';
       const task=pdfjsLib.getDocument({data:pdfBytes});
+      const pdf=await task.promise;
+
+      for(let i=1;i<=pdf.numPages;i++){
+        const page=await pdf.getPage(i);
+        const viewport=page.getViewport({scale:1.0});
+        const canvas=document.createElement("canvas");
+        canvas.width=viewport.width; canvas.height=viewport.height;
+        await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+        wrap.appendChild(canvas);
+      }
+    }
+
+    // 페이지 로딩시 기본 PDF 로드 (양식 1)
+    window.onload = () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+      loadDefaultPDF("양식 1");
+    };
+
+    // 탭 클릭 이벤트 연결
+    document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
+    document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
+  </script>
+
+  <script src="script.js"></script>
+</body>
+</html>
