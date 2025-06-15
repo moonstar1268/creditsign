@@ -15,11 +15,10 @@
     .hidden {display:none;}
     .text-box {
       position:absolute;
-      font-size:16px;
-      padding:4px;
-      border:1px solid #333;
-      background:#fff;
-      cursor:move;
+      font-size:16px; padding:4px; border:1px solid #333; background:#fff; cursor:move;
+    }
+    #signature-img {
+      position:absolute; cursor:move; border:1px solid #333;
     }
   </style>
 </head>
@@ -40,7 +39,7 @@
 
   <!-- 서명 입력 모달 -->
   <div id="pad-wrapper" class="hidden">
-    <canvas id="sig-canvas"></canvas><br />
+    <canvas id="sig-canvas" width="400" height="200"></canvas><br />
     <button id="clear">Clear</button>
     <button id="save-sig">Save Signature</button>
   </div>
@@ -51,13 +50,13 @@
   </footer>
 
 <script>
-const pdfUrls = {
-  "양식 1": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf",
-  "양식 2": "https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/92b2d1f8901301b66d242b6efe5f0cae20cd75db/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%202.pdf"
+const pdfUrls={
+  "양식 1":"https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/0e1d51a9055b9b0c7c064f97295a7bccd0a16ca3/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%201.pdf",
+  "양식 2":"https://cors-anywhere.herokuapp.com/https://github.com/moonstar1268/creditsign/raw/92b2d1f8901301b66d242b6efe5f0cae20cd75db/%ED%81%AC%EB%A0%88%EB%94%A7%EC%82%AC%EC%9D%B8%20%EA%B8%B0%EB%B3%B8%EC%84%B8%ED%8C%85%202.pdf"
 };
 
-let pdfDoc=null, pdfBytes=null, textMode=false;
-const textEntries=[];
+let pdfDoc=null, pdfBytes=null, currentCanvas=null;
+const textEntries=[], sigInfo={};
 
 async function loadDefaultPDF(name){
   const pdfResponse=await fetch(pdfUrls[name]);
@@ -89,45 +88,51 @@ function canvasClickHandler(e,canvas){
     const input=document.createElement("div");
     input.contentEditable=true;
     input.className="text-box";
-    input.style.left=e.pageX+"px";
-    input.style.top=e.pageY+"px";
-    document.body.appendChild(input);
-    input.focus();
-    input.onblur=()=>{
-      textEntries.push({
-        text:input.innerText, 
-        x:parseInt(input.style.left), 
-        y:parseInt(input.style.top), 
-        page:parseInt(canvas.dataset.page)
-      });
-    };
-    dragElement(input);
-    textMode=false;
+    input.style.left=e.pageX+"px"; input.style.top=e.pageY+"px";
+    document.body.appendChild(input); input.focus();
+    input.onblur=()=>textEntries.push({
+      text:input.innerText,
+      x:parseInt(input.style.left), y:parseInt(input.style.top),
+      page:parseInt(canvas.dataset.page)
+    });
+    dragElement(input); textMode=false;
+  }else if(sigMode){
+    currentCanvas=canvas;
+    const img=document.createElement("img");
+    img.id="signature-img"; img.src=sigInfo.dataURL;
+    img.style.left=e.pageX+"px"; img.style.top=e.pageY+"px";
+    img.style.width="150px"; img.style.height="auto";
+    document.body.appendChild(img);
+    sigInfo.x=parseInt(img.style.left);
+    sigInfo.y=parseInt(img.style.top);
+    sigInfo.page=parseInt(canvas.dataset.page);
+    dragElement(img); sigMode=false;
   }
 }
 
 document.getElementById("text-add").onclick=()=>{
-  textMode=true;
+  textMode=true; sigMode=false;
   document.getElementById("pad-wrapper").classList.add("hidden");
-  alert("PDF에서 텍스트 추가할 위치를 클릭하고 입력하세요.");
+  alert("텍스트를 추가할 위치를 클릭하세요.");
 };
 
-// ⚠️ 명확히 수정된 부분 (서명 추가 버튼 클릭 이벤트 처리)
 document.getElementById("open-pad").onclick=()=>{
-  textMode=false;  // <-- 텍스트 모드 종료 (중요!)
+  textMode=false; sigMode=false;
   document.getElementById("pad-wrapper").classList.remove("hidden");
-  initSignaturePad(); // 서명패드 초기화 및 보이기
+  initSignaturePad();
 };
 
 function initSignaturePad(){
   const canvas=document.getElementById("sig-canvas");
-  if(window.signaturePad){window.signaturePad.clear(); return;}
+  if(window.signaturePad){window.signaturePad.clear();return;}
   window.signaturePad=new SignaturePad(canvas);
   document.getElementById("clear").onclick=()=>signaturePad.clear();
   document.getElementById("save-sig").onclick=()=>{
     if(signaturePad.isEmpty()){alert("서명을 입력하세요");return;}
+    sigInfo.dataURL=signaturePad.toDataURL();
     document.getElementById("pad-wrapper").classList.add("hidden");
-    alert("서명이 저장되었습니다. (다운로드 시 반영 예정)");
+    sigMode=true;
+    alert("PDF에 서명을 추가할 위치를 클릭하세요.");
   };
 }
 
@@ -145,13 +150,44 @@ function dragElement(el){
     el.onmouseup=()=>{
       document.removeEventListener('mousemove',mouseMove);
       el.onmouseup=null;
+      updatePosition(el);
     };
   };
 }
 
+function updatePosition(el){
+  if(el.id=="signature-img"){
+    sigInfo.x=parseInt(el.style.left);
+    sigInfo.y=parseInt(el.style.top);
+  }
+}
+
+document.getElementById("download").onclick=async()=>{
+  const pdf=await PDFLib.PDFDocument.load(pdfBytes);
+  textEntries.forEach(t=>{
+    const page=pdf.getPages()[t.page];
+    page.drawText(t.text,{x:t.x-20,y:page.getHeight()-t.y,size:14});
+  });
+  if(sigInfo.dataURL){
+    const page=pdf.getPages()[sigInfo.page];
+    const png=await pdf.embedPng(sigInfo.dataURL);
+    page.drawImage(png,{
+      x:sigInfo.x-20,
+      y:page.getHeight()-sigInfo.y-60,
+      width:150,height:50
+    });
+  }
+  const finalPdfBytes=await pdf.save();
+  const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="signed.pdf";a.click();
+  URL.revokeObjectURL(url);
+};
+
 window.onload=()=>{
   pdfjsLib.GlobalWorkerOptions.workerSrc=
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
   loadDefaultPDF("양식 1");
 };
 
