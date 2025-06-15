@@ -50,14 +50,13 @@ const pdfUrls={
   "양식 2":"크레딧사인 기본세팅 2.pdf"
 };
 
-let pdfDoc=null, pdfBytes=null, currentCanvas=null;
+let pdfBytes=null, currentCanvas=null;
 let textEntries=[], sigInfo={}, textMode=false, sigMode=false;
 
 async function loadDefaultPDF(name){
   const res=await fetch(pdfUrls[name]);
   pdfBytes=await res.arrayBuffer();
-  pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
-  textEntries=[];sigInfo={};textMode=false;sigMode=false;
+  textEntries=[]; sigInfo={}; textMode=false; sigMode=false;
   clearPreviousElements();
   await renderPreview();
 }
@@ -74,7 +73,7 @@ async function renderPreview(){
     const page=await pdf.getPage(i);
     const viewport=page.getViewport({scale:1.0});
     const canvas=document.createElement("canvas");
-    canvas.width=viewport.width;canvas.height=viewport.height;
+    canvas.width=viewport.width; canvas.height=viewport.height;
     canvas.dataset.page=i-1;
     canvas.onclick=(e)=>canvasClickHandler(e,canvas);
     await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
@@ -125,7 +124,7 @@ function initSignaturePad(){
     if(signaturePad.isEmpty()){alert("서명을 입력하세요");return;}
     sigInfo.dataURL=signaturePad.toDataURL();
     document.getElementById("pad-wrapper").classList.add("hidden");
-    sigMode=true;alert("서명을 추가할 위치를 클릭하세요.");
+    sigMode=true;alert("서명 추가할 위치를 클릭하세요.");
   };
 }
 
@@ -140,31 +139,28 @@ function dragElement(el){
 document.getElementById("download").onclick=async()=>{
   const pdf=await PDFLib.PDFDocument.load(pdfBytes);
   const canvases=document.querySelectorAll('#pdf-preview canvas');
-
   textEntries.forEach(t=>{
     const canvas=canvases[t.page];
     const rect=canvas.getBoundingClientRect();
     const scaleX=pdf.getPages()[t.page].getWidth()/rect.width;
     const scaleY=pdf.getPages()[t.page].getHeight()/rect.height;
-    const textX=(t.x-rect.left)*scaleX;
-    const textY=pdf.getPages()[t.page].getHeight()-((t.y-rect.top)*scaleY);
+    const textX=(t.x-rect.left+window.scrollX)*scaleX;
+    const textY=pdf.getPages()[t.page].getHeight()-((t.y-rect.top+window.scrollY)*scaleY);
     pdf.getPages()[t.page].drawText(t.text,{x:textX,y:textY,size:14});
   });
-
   if(sigInfo.dataURL){
     const canvas=canvases[sigInfo.page];
     const rect=canvas.getBoundingClientRect();
     const scaleX=pdf.getPages()[sigInfo.page].getWidth()/rect.width;
     const scaleY=pdf.getPages()[sigInfo.page].getHeight()/rect.height;
-    const sigX=(sigInfo.x-rect.left)*scaleX;
-    const sigY=pdf.getPages()[sigInfo.page].getHeight()-((sigInfo.y-rect.top)*scaleY)-50;
+    const sigX=(sigInfo.x-rect.left+window.scrollX)*scaleX;
+    const sigY=pdf.getPages()[sigInfo.page].getHeight()-((sigInfo.y-rect.top+window.scrollY)*scaleY)-50;
     const page=pdf.getPages()[sigInfo.page];
     const png=await pdf.embedPng(sigInfo.dataURL);
     page.drawImage(png,{x:sigX,y:sigY,width:150*scaleX,height:50*scaleY});
   }
-
-  const finalBytes=await pdf.save();
-  const blob=new Blob([finalBytes],{type:"application/pdf"});
+  const finalPdfBytes=await pdf.save();
+  const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download="signed.pdf";
