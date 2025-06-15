@@ -12,11 +12,11 @@
   <style>
     #pdf-preview canvas {border:1px solid #ccc; margin-bottom:10px;}
     .hidden {display:none;}
-    .fixed-text {
-      position:absolute;font-size:16px;padding:4px;border:1px solid #000;background:#fff;
-    }
     #signature-img {
       position:absolute;cursor:move;border:1px solid #333;
+    }
+    .text-placeholder {
+      position:absolute;border:1px dashed red;width:150px;height:20px;cursor:pointer;
     }
   </style>
 </head>
@@ -28,14 +28,13 @@
   <button id="form2-tab">양식 2</button>
   <br><br>
 
-  <button id="enter-name">📝 이름 입력</button>
   <button id="open-pad">➕ 서명 추가</button>
   <button id="download">⬇️ 서명된 문서 다운로드</button>
 
   <div id="pdf-preview" style="position:relative;"></div>
 
   <div id="pad-wrapper" class="hidden">
-    <canvas id="sig-canvas" width="400" height="200"></canvas><br>
+    <canvas id="sig-canvas" width="400" height="200"></canvas><br />
     <button id="clear">Clear</button>
     <button id="save-sig">Save Signature</button>
   </div>
@@ -50,57 +49,58 @@ const pdfUrls={
   "양식 2":"크레딧사인 기본세팅 2.pdf"
 };
 
-const textPositions={
-  "양식 1":{x:180,y:830}, // 양식1의 이름 입력 위치
-  "양식 2":{x:180,y:770}  // 양식2의 이름 입력 위치
-};
-
-let pdfBytes=null, currentForm="양식 1";
-let enteredName='', sigInfo=null;
+let pdfDoc=null, pdfBytes=null;
+let sigInfo=null, placeholders=[];
 
 async function loadDefaultPDF(name){
-  currentForm=name; enteredName=''; sigInfo=null;
+  placeholders=[]; sigInfo=null;
   clearPreviousElements();
+
   const res=await fetch(pdfUrls[name]);
   pdfBytes=await res.arrayBuffer();
+  pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
   await renderPreview();
 }
 
 function clearPreviousElements(){
-  document.querySelectorAll('.fixed-text,#signature-img').forEach(el=>el.remove());
+  document.querySelectorAll('.text-placeholder,#signature-img').forEach(el=>el.remove());
   document.getElementById("pad-wrapper").classList.add("hidden");
 }
 
 async function renderPreview(){
-  const wrap=document.getElementById("pdf-preview");wrap.innerHTML='';
+  const wrap=document.getElementById("pdf-preview"); wrap.innerHTML='';
   wrap.style.position='relative';
+
   const pdf=await pdfjsLib.getDocument({data:pdfBytes}).promise;
-  const page=await pdf.getPage(1);
-  const viewport=page.getViewport({scale:1});
-  const canvas=document.createElement("canvas");
-  canvas.width=viewport.width; canvas.height=viewport.height;
-  await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
-  wrap.appendChild(canvas);
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const viewport=page.getViewport({scale:1});
+    const canvas=document.createElement("canvas");
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    canvas.style.display="block";
+    await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+    wrap.appendChild(canvas);
 
-  const pos=textPositions[currentForm];
-  const textDiv=document.createElement("div");
-  textDiv.className="fixed-text";
-  textDiv.style.left=pos.x+"px";textDiv.style.top=pos.y+"px";
-  textDiv.innerText="(이름 클릭하여 입력)";
-  textDiv.onclick=()=>inputName(textDiv);
-  wrap.appendChild(textDiv);
-}
-
-function inputName(el){
-  const name=prompt("이름을 입력하세요.");
-  if(name){
-    el.innerText=name;enteredName=name;
+    if(i===1){ // 첫번째 페이지에만 고정된 위치에 텍스트박스 추가
+      addTextPlaceholder(wrap, 100, 200); // (좌측에서 100px, 위에서 200px 위치)
+    }
   }
 }
 
-document.getElementById("enter-name").onclick=()=>{
-  document.querySelector('.fixed-text').click();
-};
+function addTextPlaceholder(container,x,y){
+  const placeholder=document.createElement("div");
+  placeholder.className="text-placeholder";
+  placeholder.style.left=x+"px"; placeholder.style.top=y+"px";
+  placeholder.onclick=()=>{
+    const text=prompt("삽입할 텍스트를 입력하세요.");
+    if(text!==null){
+      placeholder.innerText=text;
+      placeholders.push({text:text,x:x,y:y,page:0});
+      placeholder.style.border="none";
+    }
+  };
+  container.appendChild(placeholder);
+}
 
 document.getElementById("open-pad").onclick=()=>{
   document.getElementById("pad-wrapper").classList.remove("hidden");
@@ -109,27 +109,28 @@ document.getElementById("open-pad").onclick=()=>{
 
 function initSignaturePad(){
   const canvas=document.getElementById("sig-canvas");
-  if(window.signaturePad){signaturePad.clear();return;}
+  if(window.signaturePad){signaturePad.clear(); return;}
   window.signaturePad=new SignaturePad(canvas);
   document.getElementById("clear").onclick=()=>signaturePad.clear();
   document.getElementById("save-sig").onclick=()=>{
-    if(signaturePad.isEmpty()){alert("서명을 입력하세요.");return;}
+    if(signaturePad.isEmpty()){alert("서명을 입력하세요");return;}
     sigInfo={dataURL:signaturePad.toDataURL()};
     document.getElementById("pad-wrapper").classList.add("hidden");
-    alert("PDF에서 서명을 추가할 위치를 클릭하세요.");
+    alert("서명을 추가할 위치를 클릭하세요.");
     document.getElementById("pdf-preview").onclick=function(e){
-      const rect=this.getBoundingClientRect();
+      const rect=e.target.getBoundingClientRect();
       sigInfo.x=e.clientX-rect.left;
       sigInfo.y=e.clientY-rect.top;
+      sigInfo.page=0;
       addSignatureImg(sigInfo.dataURL,sigInfo.x,sigInfo.y);
-      this.onclick=null;
+      document.getElementById("pdf-preview").onclick=null;
     };
   };
 }
 
 function addSignatureImg(src,x,y){
   const img=document.createElement("img");
-  img.id="signature-img";img.src=src;
+  img.src=src;img.id="signature-img";
   img.style.left=x+"px";img.style.top=y+"px";img.style.width="150px";
   document.getElementById("pdf-preview").appendChild(img);
   dragElement(img);
@@ -145,27 +146,28 @@ function dragElement(el){
 }
 
 document.getElementById("download").onclick=async()=>{
-  const pdf=await PDFLib.PDFDocument.load(pdfBytes);
-  const page=pdf.getPages()[0];
+  const pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
+  const page=pdfDoc.getPages()[0];
 
-  if(enteredName){
-    page.drawText(enteredName,{
-      x:textPositions[currentForm].x,
-      y:page.getHeight()-textPositions[currentForm].y-15,
+  placeholders.forEach(p=>{
+    page.drawText(p.text,{
+      x:p.x,
+      y:page.getHeight()-p.y-15,
       size:14
     });
-  }
+  });
 
   if(sigInfo){
-    const png=await pdf.embedPng(sigInfo.dataURL);
+    const png=await pdfDoc.embedPng(sigInfo.dataURL);
     page.drawImage(png,{
       x:sigInfo.x,
       y:page.getHeight()-sigInfo.y-50,
-      width:150,height:50
+      width:150,
+      height:50
     });
   }
 
-  const finalPdfBytes=await pdf.save();
+  const finalPdfBytes=await pdfDoc.save();
   const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
