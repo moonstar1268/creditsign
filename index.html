@@ -138,22 +138,37 @@ function dragElement(el){
 
 document.getElementById("download").onclick=async()=>{
   const pdf=await PDFLib.PDFDocument.load(pdfBytes);
+  const pdfCanvas=currentCanvas;
+  const canvasRect=pdfCanvas.getBoundingClientRect();
+  const scaleX=pdf.getPages()[sigInfo.page].getWidth()/canvasRect.width;
+  const scaleY=pdf.getPages()[sigInfo.page].getHeight()/canvasRect.height;
+
   textEntries.forEach(t=>{
     const page=pdf.getPages()[t.page];
-    page.drawText(t.text,{x:t.x-20,y:page.getHeight()-t.y,size:14});
+    const textX=(t.x - canvasRect.left)*scaleX;
+    const textY=page.getHeight()-((t.y - canvasRect.top)*scaleY);
+    page.drawText(t.text,{x:textX,y:textY,size:14});
   });
+
   if(sigInfo.dataURL){
     const page=pdf.getPages()[sigInfo.page];
     const png=await pdf.embedPng(sigInfo.dataURL);
-    page.drawImage(png,{x:sigInfo.x-20,y:page.getHeight()-sigInfo.y-60,width:150,height:50});
+    const sigX=(sigInfo.x - canvasRect.left)*scaleX;
+    const sigY=page.getHeight()-((sigInfo.y - canvasRect.top)*scaleY)-50;
+    page.drawImage(png,{x:sigX,y:sigY,width:150*scaleX,height:50*scaleY});
   }
+
   const finalPdfBytes=await pdf.save();
   const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="signed.pdf"; a.click(); URL.revokeObjectURL(a.href);
 };
 
-window.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";loadDefaultPDF("양식 1");};
+window.onload=()=>{
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  loadDefaultPDF("양식 1");
+};
+
 document.getElementById("form1-tab").onclick=()=>loadDefaultPDF("양식 1");
 document.getElementById("form2-tab").onclick=()=>loadDefaultPDF("양식 2");
 </script>
