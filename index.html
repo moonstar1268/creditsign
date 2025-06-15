@@ -17,7 +17,6 @@
     }
   </style>
 </head>
-
 <body>
   <h1>CreditSign</h1>
 
@@ -32,7 +31,7 @@
   <div id="pdf-preview"></div>
 
   <div id="pad-wrapper" class="hidden">
-    <canvas id="sig-canvas" width="400" height="200"></canvas><br />
+    <canvas id="sig-canvas" width="400" height="200"></canvas><br/>
     <button id="clear">Clear</button>
     <button id="save-sig">Save</button>
   </div>
@@ -48,10 +47,11 @@ const pdfUrls = {
 };
 
 let pdfBytes = null;
-let padType = "";      // "name" or "sig"
+let padType = "";    // "name" or "sig"
 let nameMode = false, sigMode = false;
 let nameInfo = {}, sigInfo = {};
 
+// PDF 불러오기 & 미리보기 렌더링
 async function loadDefaultPDF(name) {
   const res = await fetch(pdfUrls[name]);
   pdfBytes = await res.arrayBuffer();
@@ -62,145 +62,147 @@ async function loadDefaultPDF(name) {
 }
 
 function clearElements() {
-  document.querySelectorAll('#name-img, #signature-img').forEach(el => el.remove());
+  document.querySelectorAll('#name-img,#signature-img').forEach(el=>el.remove());
   document.getElementById("pad-wrapper").classList.add("hidden");
 }
 
 async function renderPreview() {
   const wrap = document.getElementById("pdf-preview");
-  wrap.innerHTML = '';
+  wrap.innerHTML = "";
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.0 });
+    const vp = page.getViewport({ scale: 1.0 });
     const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    canvas.width = vp.width; canvas.height = vp.height;
     canvas.dataset.page = i - 1;
-    canvas.onclick = e => canvasClickHandler(e, canvas);
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    canvas.onclick = e => onCanvasClick(e, canvas);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
     wrap.appendChild(canvas);
   }
 }
 
-function canvasClickHandler(e, canvas) {
+// 캔버스 클릭 → 이름/서명 배치
+function onCanvasClick(e, canvas) {
+  const pageIndex = parseInt(canvas.dataset.page);
+  const rect = canvas.getBoundingClientRect();
+  const docCanvasLeft = rect.left + window.scrollX;
+  const docCanvasTop  = rect.top  + window.scrollY;
+
   if (nameMode) {
-    const img = document.createElement("img");
-    img.id = "name-img";
-    img.src = nameInfo.dataURL;
-    img.style.left = e.pageX + "px";
-    img.style.top  = e.pageY + "px";
-    img.style.width = "150px";
-    document.body.appendChild(img);
-    nameInfo.x = parseInt(img.style.left);
-    nameInfo.y = parseInt(img.style.top);
-    nameInfo.page = parseInt(canvas.dataset.page);
-    dragElement(img);
+    createPlacedImg("name-img", nameInfo, e.pageX, e.pageY, pageIndex);
     nameMode = false;
   } else if (sigMode) {
-    const img = document.createElement("img");
-    img.id = "signature-img";
-    img.src = sigInfo.dataURL;
-    img.style.left = e.pageX + "px";
-    img.style.top  = e.pageY + "px";
-    img.style.width = "150px";
-    document.body.appendChild(img);
-    sigInfo.x = parseInt(img.style.left);
-    sigInfo.y = parseInt(img.style.top);
-    sigInfo.page = parseInt(canvas.dataset.page);
-    dragElement(img);
+    createPlacedImg("signature-img", sigInfo, e.pageX, e.pageY, pageIndex);
     sigMode = false;
   }
+
+  function createPlacedImg(id, info, px, py, page) {
+    const img = document.createElement("img");
+    img.id = id;
+    img.src = info.dataURL;
+    img.style.left = px + "px";
+    img.style.top  = py + "px";
+    img.style.width = "150px";
+    document.body.appendChild(img);
+    dragElement(img);
+    info.page = page;
+    // 문서 기준 위치 저장
+    info.x = px;
+    info.y = py;
+  }
 }
 
+// 이름/서명 입력 버튼
 document.getElementById("name-add").onclick = () => {
   padType = "name"; nameMode = sigMode = false;
-  document.getElementById("pad-wrapper").classList.remove("hidden");
-  initSignaturePad();
+  openPad();
 };
-
 document.getElementById("open-pad").onclick = () => {
   padType = "sig"; nameMode = sigMode = false;
-  document.getElementById("pad-wrapper").classList.remove("hidden");
-  initSignaturePad();
+  openPad();
 };
 
+function openPad() {
+  document.getElementById("pad-wrapper").classList.remove("hidden");
+  initSignaturePad();
+}
+
+// SignaturePad 세팅
 function initSignaturePad() {
-  const canvas = document.getElementById("sig-canvas");
-  if (window.signaturePad) {
+  const c = document.getElementById("sig-canvas");
+  if (!window.signaturePad) {
+    window.signaturePad = new SignaturePad(c);
+    document.getElementById("clear").onclick = () => signaturePad.clear();
+    document.getElementById("save-sig").onclick = () => {
+      if (signaturePad.isEmpty()) {
+        alert(padType==="name"?"이름을 입력하세요":"서명을 입력하세요");
+        return;
+      }
+      const du = signaturePad.toDataURL();
+      if (padType==="name") {
+        nameInfo.dataURL = du; nameMode = true;
+        alert("이름을 배치할 위치를 클릭하세요");
+      } else {
+        sigInfo.dataURL = du; sigMode = true;
+        alert("서명을 배치할 위치를 클릭하세요");
+      }
+      document.getElementById("pad-wrapper").classList.add("hidden");
+    };
+  } else {
     signaturePad.clear();
-    return;
   }
-  window.signaturePad = new SignaturePad(canvas);
-  document.getElementById("clear").onclick = () => signaturePad.clear();
-  document.getElementById("save-sig").onclick = () => {
-    if (signaturePad.isEmpty()) {
-      alert(padType === "name" ? "이름을 입력하세요" : "서명을 입력하세요");
-      return;
-    }
-    const dataURL = signaturePad.toDataURL();
-    if (padType === "name") {
-      nameInfo.dataURL = dataURL;
-      nameMode = true;
-      alert("이름 위치를 클릭하세요");
-    } else {
-      sigInfo.dataURL = dataURL;
-      sigMode = true;
-      alert("서명 위치를 클릭하세요");
-    }
-    document.getElementById("pad-wrapper").classList.add("hidden");
-  };
 }
 
+// 드래그 지원
 function dragElement(el) {
-  el.onmousedown = e => {
-    let shiftX = e.clientX - el.getBoundingClientRect().left;
-    let shiftY = e.clientY - el.getBoundingClientRect().top;
-    document.onmousemove = e => {
-      el.style.left = e.pageX - shiftX + 'px';
-      el.style.top  = e.pageY - shiftY + 'px';
+  el.onmousedown = ev => {
+    let shiftX = ev.clientX - el.getBoundingClientRect().left;
+    let shiftY = ev.clientY - el.getBoundingClientRect().top;
+    document.onmousemove = ev2 => {
+      el.style.left = ev2.pageX - shiftX + "px";
+      el.style.top  = ev2.pageY - shiftY + "px";
     };
-    document.onmouseup = () => {
-      document.onmousemove = document.onmouseup = null;
-    };
+    document.onmouseup = () => { document.onmousemove = document.onmouseup = null; };
   };
 }
 
+// PDF 다운로드
 document.getElementById("download").onclick = async () => {
   const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
   const canvases = document.querySelectorAll('#pdf-preview canvas');
 
-  // embed and draw name image
-  if (nameInfo.dataURL) {
-    const pngName = await pdfDoc.embedPng(nameInfo.dataURL);
-    const page = pages[nameInfo.page];
-    const rect = canvases[nameInfo.page].getBoundingClientRect();
+  // 공통 함수: 배치된 이미지 PDF에 삽입
+  async function embedImage(info) {
+    if (!info.dataURL) return;
+    const page = pages[info.page];
+    const rect = canvases[info.page].getBoundingClientRect();
+    const canvasLeft = rect.left + window.scrollX;
+    const canvasTop  = rect.top  + window.scrollY;
+    // 캔버스 내부 좌표
+    const xCanvas = info.x - canvasLeft;
+    const yCanvas = info.y - canvasTop;
+    // PDF 비율
     const scaleX = page.getWidth() / rect.width;
     const scaleY = page.getHeight() / rect.height;
-    const x = (nameInfo.x - rect.left + window.scrollX) * scaleX;
-    const y = page.getHeight() - ((nameInfo.y - rect.top + window.scrollY) * scaleY) - (50 * scaleY);
-    page.drawImage(pngName, { x, y, width: 150 * scaleX, height: 50 * scaleY });
+    // PDF 좌표 (원점이 왼쪽 아래)
+    const x = xCanvas * scaleX;
+    const y = page.getHeight() - (yCanvas * scaleY) - (50 * scaleY);
+    const png = await pdfDoc.embedPng(info.dataURL);
+    page.drawImage(png, { x, y, width: 150 * scaleX, height: 50 * scaleY });
   }
 
-  // embed and draw signature image
-  if (sigInfo.dataURL) {
-    const pngSig = await pdfDoc.embedPng(sigInfo.dataURL);
-    const page = pages[sigInfo.page];
-    const rect = canvases[sigInfo.page].getBoundingClientRect();
-    const scaleX = page.getWidth() / rect.width;
-    const scaleY = page.getHeight() / rect.height;
-    const x = (sigInfo.x - rect.left + window.scrollX) * scaleX;
-    const y = page.getHeight() - ((sigInfo.y - rect.top + window.scrollY) * scaleY) - (50 * scaleY);
-    page.drawImage(pngSig, { x, y, width: 150 * scaleX, height: 50 * scaleY });
-  }
+  await embedImage(nameInfo);
+  await embedImage(sigInfo);
 
-  // save and download
-  const pdfBytesOut = await pdfDoc.save();
-  const blob = new Blob([pdfBytesOut], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+  // 저장
+  const out = await pdfDoc.save();
+  const blob = new Blob([out], { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
   a.download = "signed.pdf";
   document.body.appendChild(a);
   a.click();
@@ -210,6 +212,7 @@ document.getElementById("download").onclick = async () => {
   }, 3000);
 };
 
+// 초기 로드
 window.onload = () => {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
