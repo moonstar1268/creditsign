@@ -137,22 +137,33 @@ function initSignaturePad(){
 }
 
 function dragElement(el){
-  let shiftX,shiftY;
-  el.onmousedown=(e)=>{
-    shiftX=e.clientX-el.getBoundingClientRect().left;
-    shiftY=e.clientY-el.getBoundingClientRect().top;
-    function moveAt(pageX,pageY){
-      el.style.left=pageX-shiftX+'px';
-      el.style.top=pageY-shiftY+'px';
+  let shiftX, shiftY;
+
+  el.onmousedown = (e) => {
+    e.preventDefault();
+    shiftX = e.clientX - el.getBoundingClientRect().left;
+    shiftY = e.clientY - el.getBoundingClientRect().top;
+
+    function moveAt(pageX, pageY) {
+      el.style.left = pageX - shiftX + 'px';
+      el.style.top = pageY - shiftY + 'px';
     }
-    function mouseMove(e){moveAt(e.pageX,e.pageY);}
-    document.addEventListener('mousemove',mouseMove);
-    el.onmouseup=()=>{
-      document.removeEventListener('mousemove',mouseMove);
-      el.onmouseup=null;
+
+    function onMouseMove(e) {
+      moveAt(e.pageX, e.pageY);
+    }
+
+    // 문서 전체에서 마우스 이벤트를 감지 (완벽한 해결!)
+    document.addEventListener('mousemove', onMouseMove);
+
+    document.onmouseup = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.onmouseup = null;
       updatePosition(el);
     };
   };
+
+  el.ondragstart = () => false;
 }
 
 function updatePosition(el){
