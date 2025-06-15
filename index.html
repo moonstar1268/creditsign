@@ -50,6 +50,7 @@ const pdfUrls={
 
 let pdfDoc=null, pdfBytes=null, currentCanvas=null;
 let textEntries=[], sigInfo={}, textMode=false, sigMode=false;
+let textMode=false, sigMode=false;
 
 async function loadDefaultPDF(name){
   const pdfResponse=await fetch(pdfUrls[name]);
