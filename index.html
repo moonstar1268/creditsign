@@ -4,18 +4,14 @@
   <meta charset="utf-8" />
   <title>CreditSign</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- 라이브러리 CDN -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-
   <style>
     #pdf-preview canvas {border:1px solid #ccc; margin-bottom:10px;}
     .hidden {display:none;}
     .text-box {
-      position:absolute;
-      font-size:16px; padding:4px; border:1px solid #333; background:#fff; cursor:move;
+      position:absolute; font-size:16px; padding:4px; border:1px solid #333; background:#fff; cursor:move;
     }
     #signature-img {
       position:absolute; cursor:move; border:1px solid #333;
@@ -26,7 +22,6 @@
 <body>
   <h1>CreditSign</h1>
 
-  <!-- 양식 탭 버튼 -->
   <button id="form1-tab">양식 1</button>
   <button id="form2-tab">양식 2</button>
   <br><br>
@@ -35,16 +30,14 @@
   <button id="open-pad">➕ 서명 추가</button>
   <button id="download">⬇️ 서명된 문서 다운로드</button>
 
-  <div id="pdf-preview" style="position:relative;"></div>
+  <div id="pdf-preview"></div>
 
-  <!-- 서명 입력 모달 -->
   <div id="pad-wrapper" class="hidden">
     <canvas id="sig-canvas" width="400" height="200"></canvas><br />
     <button id="clear">Clear</button>
     <button id="save-sig">Save Signature</button>
   </div>
 
-  <!-- 저작권 문구 -->
   <footer style="margin-top:20px; font-size:14px; color:#666;">
     Copyright (C) 한국금융범죄예방연구센터. All rights reserved.
   </footer>
@@ -56,26 +49,29 @@ const pdfUrls={
 };
 
 let pdfDoc=null, pdfBytes=null, currentCanvas=null;
-const textEntries=[], sigInfo={};
+let textEntries=[], sigInfo={}, textMode=false, sigMode=false;
 
 async function loadDefaultPDF(name){
   const pdfResponse=await fetch(pdfUrls[name]);
   pdfBytes=await pdfResponse.arrayBuffer();
   pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
+  textEntries=[]; sigInfo={}; clearPreviousElements(); 
   await renderPreview();
+}
+
+function clearPreviousElements(){
+  document.querySelectorAll('.text-box, #signature-img').forEach(el=>el.remove());
 }
 
 async function renderPreview(){
   const wrap=document.getElementById("pdf-preview");
   wrap.innerHTML='';
   const pdf=await pdfjsLib.getDocument({data:pdfBytes}).promise;
-
   for(let i=1;i<=pdf.numPages;i++){
     const page=await pdf.getPage(i);
     const viewport=page.getViewport({scale:1.0});
     const canvas=document.createElement("canvas");
     canvas.width=viewport.width; canvas.height=viewport.height;
-    canvas.style.position='relative';
     await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
     canvas.dataset.page=i-1;
     canvas.onclick=(e)=>canvasClickHandler(e,canvas);
@@ -86,33 +82,26 @@ async function renderPreview(){
 function canvasClickHandler(e,canvas){
   if(textMode){
     const input=document.createElement("div");
-    input.contentEditable=true;
-    input.className="text-box";
+    input.contentEditable=true; input.className="text-box";
     input.style.left=e.pageX+"px"; input.style.top=e.pageY+"px";
     document.body.appendChild(input); input.focus();
     input.onblur=()=>textEntries.push({
-      text:input.innerText,
-      x:parseInt(input.style.left), y:parseInt(input.style.top),
-      page:parseInt(canvas.dataset.page)
+      text:input.innerText, x:parseInt(input.style.left), y:parseInt(input.style.top), page:parseInt(canvas.dataset.page)
     });
     dragElement(input); textMode=false;
   }else if(sigMode){
     currentCanvas=canvas;
     const img=document.createElement("img");
     img.id="signature-img"; img.src=sigInfo.dataURL;
-    img.style.left=e.pageX+"px"; img.style.top=e.pageY+"px";
-    img.style.width="150px"; img.style.height="auto";
+    img.style.left=e.pageX+"px"; img.style.top=e.pageY+"px"; img.style.width="150px";
     document.body.appendChild(img);
-    sigInfo.x=parseInt(img.style.left);
-    sigInfo.y=parseInt(img.style.top);
-    sigInfo.page=parseInt(canvas.dataset.page);
+    sigInfo.x=parseInt(img.style.left); sigInfo.y=parseInt(img.style.top); sigInfo.page=parseInt(canvas.dataset.page);
     dragElement(img); sigMode=false;
   }
 }
 
 document.getElementById("text-add").onclick=()=>{
-  textMode=true; sigMode=false;
-  document.getElementById("pad-wrapper").classList.add("hidden");
+  textMode=true; sigMode=false; document.getElementById("pad-wrapper").classList.add("hidden");
   alert("텍스트를 추가할 위치를 클릭하세요.");
 };
 
@@ -124,53 +113,32 @@ document.getElementById("open-pad").onclick=()=>{
 
 function initSignaturePad(){
   const canvas=document.getElementById("sig-canvas");
-  if(window.signaturePad){window.signaturePad.clear();return;}
+  if(window.signaturePad){signaturePad.clear(); return;}
   window.signaturePad=new SignaturePad(canvas);
   document.getElementById("clear").onclick=()=>signaturePad.clear();
   document.getElementById("save-sig").onclick=()=>{
     if(signaturePad.isEmpty()){alert("서명을 입력하세요");return;}
     sigInfo.dataURL=signaturePad.toDataURL();
     document.getElementById("pad-wrapper").classList.add("hidden");
-    sigMode=true;
-    alert("PDF에 서명을 추가할 위치를 클릭하세요.");
+    sigMode=true; alert("PDF에 서명을 추가할 위치를 클릭하세요.");
   };
 }
 
 function dragElement(el){
-  let shiftX, shiftY;
-
-  el.onmousedown = (e) => {
-    e.preventDefault();
-    shiftX = e.clientX - el.getBoundingClientRect().left;
-    shiftY = e.clientY - el.getBoundingClientRect().top;
-
-    function moveAt(pageX, pageY) {
-      el.style.left = pageX - shiftX + 'px';
-      el.style.top = pageY - shiftY + 'px';
-    }
-
-    function onMouseMove(e) {
-      moveAt(e.pageX, e.pageY);
-    }
-
-    // 문서 전체에서 마우스 이벤트를 감지 (완벽한 해결!)
-    document.addEventListener('mousemove', onMouseMove);
-
-    document.onmouseup = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.onmouseup = null;
-      updatePosition(el);
+  let shiftX,shiftY;
+  el.onmousedown=(e)=>{
+    shiftX=e.clientX-el.getBoundingClientRect().left;
+    shiftY=e.clientY-el.getBoundingClientRect().top;
+    function moveAt(pageX,pageY){el.style.left=pageX-shiftX+'px'; el.style.top=pageY-shiftY+'px';}
+    document.onmousemove=(e)=>moveAt(e.pageX,e.pageY);
+    document.onmouseup=()=>{
+      document.onmousemove=null; document.onmouseup=null; updatePosition(el);
     };
   };
-
-  el.ondragstart = () => false;
 }
 
 function updatePosition(el){
-  if(el.id=="signature-img"){
-    sigInfo.x=parseInt(el.style.left);
-    sigInfo.y=parseInt(el.style.top);
-  }
+  if(el.id=="signature-img"){sigInfo.x=parseInt(el.style.left);sigInfo.y=parseInt(el.style.top);}
 }
 
 document.getElementById("download").onclick=async()=>{
@@ -182,29 +150,21 @@ document.getElementById("download").onclick=async()=>{
   if(sigInfo.dataURL){
     const page=pdf.getPages()[sigInfo.page];
     const png=await pdf.embedPng(sigInfo.dataURL);
-    page.drawImage(png,{
-      x:sigInfo.x-20,
-      y:page.getHeight()-sigInfo.y-60,
-      width:150,height:50
-    });
+    page.drawImage(png,{x:sigInfo.x-20,y:page.getHeight()-sigInfo.y-60,width:150,height:50});
   }
   const finalPdfBytes=await pdf.save();
   const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
-  const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;a.download="signed.pdf";a.click();
-  URL.revokeObjectURL(url);
+  a.href=URL.createObjectURL(blob); a.download="signed.pdf"; a.click(); URL.revokeObjectURL(a.href);
 };
 
 window.onload=()=>{
-  pdfjsLib.GlobalWorkerOptions.workerSrc=
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
   loadDefaultPDF("양식 1");
 };
 
 document.getElementById("form1-tab").onclick=()=>loadDefaultPDF("양식 1");
 document.getElementById("form2-tab").onclick=()=>loadDefaultPDF("양식 2");
-
 </script>
 </body>
 </html>
