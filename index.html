@@ -14,6 +14,7 @@
     .hidden { display:none; }
     #name-img, #signature-img {
       position:absolute; cursor:move; border:1px solid #333;
+      width:150px; /* 고정 폭 */
     }
   </style>
 </head>
@@ -48,25 +49,16 @@ const pdfUrls = {
 
 let pdfBytes = null;
 let padType = "";    // "name" or "sig"
-let nameMode = false, sigMode = false;
-let nameInfo = {}, sigInfo = {};
+let nameInfo = { page: null, dataURL: null };
+let sigInfo  = { page: null, dataURL: null };
 
-// PDF 불러오기 & 미리보기 렌더링
+/* --- PDF 불러오기 & 미리보기 렌더 --- */
 async function loadDefaultPDF(name) {
   const res = await fetch(pdfUrls[name]);
   pdfBytes = await res.arrayBuffer();
-  nameMode = sigMode = false;
-  nameInfo = {}; sigInfo = {};
+  nameInfo = { page: null, dataURL: null };
+  sigInfo  = { page: null, dataURL: null };
   clearElements();
-  await renderPreview();
-}
-
-function clearElements() {
-  document.querySelectorAll('#name-img,#signature-img').forEach(el=>el.remove());
-  document.getElementById("pad-wrapper").classList.add("hidden");
-}
-
-async function renderPreview() {
   const wrap = document.getElementById("pdf-preview");
   wrap.innerHTML = "";
   const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
@@ -75,7 +67,8 @@ async function renderPreview() {
     const page = await pdf.getPage(i);
     const vp = page.getViewport({ scale: 1.0 });
     const canvas = document.createElement("canvas");
-    canvas.width = vp.width; canvas.height = vp.height;
+    canvas.width = vp.width;
+    canvas.height = vp.height;
     canvas.dataset.page = i - 1;
     canvas.onclick = e => onCanvasClick(e, canvas);
     await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
@@ -83,44 +76,46 @@ async function renderPreview() {
   }
 }
 
-// 캔버스 클릭 → 이름/서명 배치
+function clearElements() {
+  document.querySelectorAll("#name-img, #signature-img").forEach(el => el.remove());
+  document.getElementById("pad-wrapper").classList.add("hidden");
+}
+
+/* --- 캔버스 클릭 시 이름/서명 배치 --- */
 function onCanvasClick(e, canvas) {
-  const pageIndex = parseInt(canvas.dataset.page);
-  const rect = canvas.getBoundingClientRect();
-  const docCanvasLeft = rect.left + window.scrollX;
-  const docCanvasTop  = rect.top  + window.scrollY;
+  const pageIndex = Number(canvas.dataset.page);
+  const px = e.pageX, py = e.pageY;
 
-  if (nameMode) {
-    createPlacedImg("name-img", nameInfo, e.pageX, e.pageY, pageIndex);
-    nameMode = false;
-  } else if (sigMode) {
-    createPlacedImg("signature-img", sigInfo, e.pageX, e.pageY, pageIndex);
-    sigMode = false;
-  }
-
-  function createPlacedImg(id, info, px, py, page) {
-    const img = document.createElement("img");
-    img.id = id;
-    img.src = info.dataURL;
-    img.style.left = px + "px";
-    img.style.top  = py + "px";
-    img.style.width = "150px";
-    document.body.appendChild(img);
-    dragElement(img);
-    info.page = page;
-    // 문서 기준 위치 저장
-    info.x = px;
-    info.y = py;
+  if (padType === "name") {
+    placeImage("name-img", nameInfo, pageIndex, px, py);
+  } else if (padType === "sig") {
+    placeImage("signature-img", sigInfo, pageIndex, px, py);
   }
 }
 
-// 이름/서명 입력 버튼
+function placeImage(id, info, page, x, y) {
+  // 기존 요소 제거 후 새로 생성
+  document.getElementById(id)?.remove();
+  const img = document.createElement("img");
+  img.id = id;
+  img.src = info.dataURL;
+  img.style.left = x + "px";
+  img.style.top  = y + "px";
+  document.body.appendChild(img);
+  makeDraggable(img);
+  info.page = page;
+}
+
+/* --- 버튼 이벤트 --- */
+document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
+document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
+
 document.getElementById("name-add").onclick = () => {
-  padType = "name"; nameMode = sigMode = false;
+  padType = "name";
   openPad();
 };
 document.getElementById("open-pad").onclick = () => {
-  padType = "sig"; nameMode = sigMode = false;
+  padType = "sig";
   openPad();
 };
 
@@ -129,77 +124,90 @@ function openPad() {
   initSignaturePad();
 }
 
-// SignaturePad 세팅
+/* --- SignaturePad 초기화 --- */
 function initSignaturePad() {
-  const c = document.getElementById("sig-canvas");
+  const canvas = document.getElementById("sig-canvas");
   if (!window.signaturePad) {
-    window.signaturePad = new SignaturePad(c);
+    window.signaturePad = new SignaturePad(canvas);
     document.getElementById("clear").onclick = () => signaturePad.clear();
     document.getElementById("save-sig").onclick = () => {
       if (signaturePad.isEmpty()) {
-        alert(padType==="name"?"이름을 입력하세요":"서명을 입력하세요");
+        alert(padType === "name" ? "이름을 입력하세요" : "서명을 입력하세요");
         return;
       }
       const du = signaturePad.toDataURL();
-      if (padType==="name") {
-        nameInfo.dataURL = du; nameMode = true;
-        alert("이름을 배치할 위치를 클릭하세요");
-      } else {
-        sigInfo.dataURL = du; sigMode = true;
-        alert("서명을 배치할 위치를 클릭하세요");
-      }
+      if (padType === "name") nameInfo.dataURL = du;
+      else sigInfo.dataURL = du;
       document.getElementById("pad-wrapper").classList.add("hidden");
+      alert(padType === "name" ? "이름 배치할 위치를 클릭하세요" : "서명 배치할 위치를 클릭하세요");
     };
   } else {
     signaturePad.clear();
   }
 }
 
-// 드래그 지원
-function dragElement(el) {
-  el.onmousedown = ev => {
-    let shiftX = ev.clientX - el.getBoundingClientRect().left;
-    let shiftY = ev.clientY - el.getBoundingClientRect().top;
-    document.onmousemove = ev2 => {
-      el.style.left = ev2.pageX - shiftX + "px";
-      el.style.top  = ev2.pageY - shiftY + "px";
+/* --- 드래그 가능하도록 설정 --- */
+function makeDraggable(el) {
+  el.onmousedown = e => {
+    const rect = el.getBoundingClientRect();
+    const shiftX = e.clientX - rect.left;
+    const shiftY = e.clientY - rect.top;
+    document.onmousemove = ev => {
+      el.style.left = ev.pageX - shiftX + "px";
+      el.style.top  = ev.pageY - shiftY + "px";
     };
-    document.onmouseup = () => { document.onmousemove = document.onmouseup = null; };
+    document.onmouseup = () => {
+      document.onmousemove = document.onmouseup = null;
+    };
   };
 }
 
-// PDF 다운로드
+/* --- PDF 다운로드 & 정확한 위치 매핑 --- */
 document.getElementById("download").onclick = async () => {
   const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
-  const canvases = document.querySelectorAll('#pdf-preview canvas');
+  const canvases = document.querySelectorAll("#pdf-preview canvas");
 
-  // 공통 함수: 배치된 이미지 PDF에 삽입
-  async function embedImage(info) {
-    if (!info.dataURL) return;
+  // 공통: ID로 요소 찾아 PDF에 임베드
+  async function embedImage(info, id) {
+    if (!info.dataURL || info.page === null) return;
+    const imgEl = document.getElementById(id);
+    const canvasEl = canvases[info.page];
     const page = pages[info.page];
-    const rect = canvases[info.page].getBoundingClientRect();
-    const canvasLeft = rect.left + window.scrollX;
-    const canvasTop  = rect.top  + window.scrollY;
-    // 캔버스 내부 좌표
-    const xCanvas = info.x - canvasLeft;
-    const yCanvas = info.y - canvasTop;
-    // PDF 비율
-    const scaleX = page.getWidth() / rect.width;
-    const scaleY = page.getHeight() / rect.height;
-    // PDF 좌표 (원점이 왼쪽 아래)
+
+    // 뷰포트 좌표 얻기
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const imgRect    = imgEl.getBoundingClientRect();
+
+    // 캔버스 내부 픽셀 좌표
+    const xCanvas = imgRect.left - canvasRect.left;
+    const yCanvas = imgRect.top  - canvasRect.top;
+
+    // PDF 좌표 비율
+    const scaleX = page.getWidth()  / canvasRect.width;
+    const scaleY = page.getHeight() / canvasRect.height;
+
+    // PDF 상의 최종 좌표 (왼쪽 아래 원점)
     const x = xCanvas * scaleX;
-    const y = page.getHeight() - (yCanvas * scaleY) - (50 * scaleY);
+    const y = page.getHeight() - (yCanvas * scaleY) - (imgRect.height * scaleY);
+
+    // 이미지 삽입
     const png = await pdfDoc.embedPng(info.dataURL);
-    page.drawImage(png, { x, y, width: 150 * scaleX, height: 50 * scaleY });
+    page.drawImage(png, {
+      x,
+      y,
+      width:  imgRect.width  * scaleX,
+      height: imgRect.height * scaleY
+    });
   }
 
-  await embedImage(nameInfo);
-  await embedImage(sigInfo);
+  // 이름 & 서명 임베드
+  await embedImage(nameInfo, "name-img");
+  await embedImage(sigInfo,  "signature-img");
 
-  // 저장
-  const out = await pdfDoc.save();
-  const blob = new Blob([out], { type: 'application/pdf' });
+  // 저장 & 다운로드
+  const pdfBytesOut = await pdfDoc.save();
+  const blob = new Blob([pdfBytesOut], { type: "application/pdf" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
@@ -212,14 +220,12 @@ document.getElementById("download").onclick = async () => {
   }, 3000);
 };
 
-// 초기 로드
+/* --- 초기 실행 --- */
 window.onload = () => {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
   loadDefaultPDF("양식 1");
 };
-document.getElementById("form1-tab").onclick = () => loadDefaultPDF("양식 1");
-document.getElementById("form2-tab").onclick = () => loadDefaultPDF("양식 2");
 </script>
 </body>
 </html>
