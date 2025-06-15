@@ -13,10 +13,10 @@
     #pdf-preview canvas {border:1px solid #ccc; margin-bottom:10px;}
     .hidden {display:none;}
     .text-box {
-      position:absolute; font-size:16px; padding:4px; border:1px solid #333; background:#fff; cursor:move;
+      position:absolute;font-size:16px;padding:4px;border:1px solid #333;background:#fff;cursor:move;
     }
     #signature-img {
-      position:absolute; cursor:move; border:1px solid #333;
+      position:absolute;cursor:move;border:1px solid #333;
     }
   </style>
 </head>
@@ -25,7 +25,8 @@
   <h1>CreditSign</h1>
 
   <button id="form1-tab">양식 1</button>
-  <button id="form2-tab">양식 2</button><br><br>
+  <button id="form2-tab">양식 2</button>
+  <br><br>
 
   <button id="text-add">📝 텍스트 추가</button>
   <button id="open-pad">➕ 서명 추가</button>
@@ -34,7 +35,7 @@
   <div id="pdf-preview"></div>
 
   <div id="pad-wrapper" class="hidden">
-    <canvas id="sig-canvas" width="400" height="200"></canvas><br>
+    <canvas id="sig-canvas" width="400" height="200"></canvas><br />
     <button id="clear">Clear</button>
     <button id="save-sig">Save Signature</button>
   </div>
@@ -49,15 +50,15 @@ const pdfUrls={
   "양식 2":"크레딧사인 기본세팅 2.pdf"
 };
 
-let pdfDoc=null,pdfBytes=null,currentForm="양식 1";
-let textEntries=[],sigInfo={},textMode=false,sigMode=false;
+let pdfDoc=null, pdfBytes=null, currentCanvas=null;
+let textEntries=[], sigInfo={}, textMode=false, sigMode=false;
 
 async function loadDefaultPDF(name){
-  currentForm = name;
   const res=await fetch(pdfUrls[name]);
   pdfBytes=await res.arrayBuffer();
   pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
-  textEntries=[]; sigInfo={}; clearPreviousElements();
+  textEntries=[];sigInfo={};textMode=false;sigMode=false;
+  clearPreviousElements();
   await renderPreview();
 }
 
@@ -73,7 +74,7 @@ async function renderPreview(){
     const page=await pdf.getPage(i);
     const viewport=page.getViewport({scale:1.0});
     const canvas=document.createElement("canvas");
-    canvas.width=viewport.width; canvas.height=viewport.height;
+    canvas.width=viewport.width;canvas.height=viewport.height;
     canvas.dataset.page=i-1;
     canvas.onclick=(e)=>canvasClickHandler(e,canvas);
     await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
@@ -94,6 +95,7 @@ function canvasClickHandler(e,canvas){
     });
     dragElement(input);textMode=false;
   }else if(sigMode){
+    currentCanvas=canvas;
     const img=document.createElement("img");
     img.id="signature-img";img.src=sigInfo.dataURL;
     img.style.left=e.pageX+"px";img.style.top=e.pageY+"px";img.style.width="150px";
@@ -104,8 +106,7 @@ function canvasClickHandler(e,canvas){
 }
 
 document.getElementById("text-add").onclick=()=>{
-  textMode=true;sigMode=false;
-  document.getElementById("pad-wrapper").classList.add("hidden");
+  textMode=true;sigMode=false;document.getElementById("pad-wrapper").classList.add("hidden");
   alert("텍스트 추가할 위치를 클릭하세요.");
 };
 
@@ -139,6 +140,7 @@ function dragElement(el){
 document.getElementById("download").onclick=async()=>{
   const pdf=await PDFLib.PDFDocument.load(pdfBytes);
   const canvases=document.querySelectorAll('#pdf-preview canvas');
+
   textEntries.forEach(t=>{
     const canvas=canvases[t.page];
     const rect=canvas.getBoundingClientRect();
@@ -154,15 +156,15 @@ document.getElementById("download").onclick=async()=>{
     const rect=canvas.getBoundingClientRect();
     const scaleX=pdf.getPages()[sigInfo.page].getWidth()/rect.width;
     const scaleY=pdf.getPages()[sigInfo.page].getHeight()/rect.height;
+    const sigX=(sigInfo.x-rect.left)*scaleX;
+    const sigY=pdf.getPages()[sigInfo.page].getHeight()-((sigInfo.y-rect.top)*scaleY)-50;
     const page=pdf.getPages()[sigInfo.page];
     const png=await pdf.embedPng(sigInfo.dataURL);
-    const sigX=(sigInfo.x-rect.left)*scaleX;
-    const sigY=page.getHeight()-((sigInfo.y-rect.top)*scaleY)-50;
     page.drawImage(png,{x:sigX,y:sigY,width:150*scaleX,height:50*scaleY});
   }
 
-  const finalPdfBytes=await pdf.save();
-  const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
+  const finalBytes=await pdf.save();
+  const blob=new Blob([finalBytes],{type:"application/pdf"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download="signed.pdf";
@@ -170,7 +172,10 @@ document.getElementById("download").onclick=async()=>{
   URL.revokeObjectURL(a.href);
 };
 
-window.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";loadDefaultPDF("양식 1");};
+window.onload=()=>{
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  loadDefaultPDF("양식 1");
+};
 document.getElementById("form1-tab").onclick=()=>loadDefaultPDF("양식 1");
 document.getElementById("form2-tab").onclick=()=>loadDefaultPDF("양식 2");
 </script>
