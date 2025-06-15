@@ -55,12 +55,15 @@ async function loadDefaultPDF(name){
   const pdfResponse=await fetch(pdfUrls[name]);
   pdfBytes=await pdfResponse.arrayBuffer();
   pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
-  textEntries=[]; sigInfo={}; clearPreviousElements(); 
+  
+  textEntries=[]; sigInfo={}; textMode=false; sigMode=false;
+  clearPreviousElements();
   await renderPreview();
 }
 
 function clearPreviousElements(){
   document.querySelectorAll('.text-box, #signature-img').forEach(el=>el.remove());
+  document.getElementById("pad-wrapper").classList.add("hidden");
 }
 
 async function renderPreview(){
@@ -102,7 +105,7 @@ function canvasClickHandler(e,canvas){
 
 document.getElementById("text-add").onclick=()=>{
   textMode=true; sigMode=false; document.getElementById("pad-wrapper").classList.add("hidden");
-  alert("텍스트를 추가할 위치를 클릭하세요.");
+  alert("텍스트 추가할 위치를 클릭하세요.");
 };
 
 document.getElementById("open-pad").onclick=()=>{
@@ -120,49 +123,19 @@ function initSignaturePad(){
     if(signaturePad.isEmpty()){alert("서명을 입력하세요");return;}
     sigInfo.dataURL=signaturePad.toDataURL();
     document.getElementById("pad-wrapper").classList.add("hidden");
-    sigMode=true; alert("PDF에 서명을 추가할 위치를 클릭하세요.");
+    sigMode=true; alert("서명 추가할 위치를 클릭하세요.");
   };
 }
 
 function dragElement(el){
-  let shiftX,shiftY;
   el.onmousedown=(e)=>{
-    shiftX=e.clientX-el.getBoundingClientRect().left;
-    shiftY=e.clientY-el.getBoundingClientRect().top;
-    function moveAt(pageX,pageY){el.style.left=pageX-shiftX+'px'; el.style.top=pageY-shiftY+'px';}
-    document.onmousemove=(e)=>moveAt(e.pageX,e.pageY);
-    document.onmouseup=()=>{
-      document.onmousemove=null; document.onmouseup=null; updatePosition(el);
-    };
+    let shiftX=e.clientX-el.getBoundingClientRect().left,shiftY=e.clientY-el.getBoundingClientRect().top;
+    document.onmousemove=(e)=>{el.style.left=e.pageX-shiftX+'px';el.style.top=e.pageY-shiftY+'px';};
+    document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};
   };
 }
 
-function updatePosition(el){
-  if(el.id=="signature-img"){sigInfo.x=parseInt(el.style.left);sigInfo.y=parseInt(el.style.top);}
-}
-
-document.getElementById("download").onclick=async()=>{
-  const pdf=await PDFLib.PDFDocument.load(pdfBytes);
-  textEntries.forEach(t=>{
-    const page=pdf.getPages()[t.page];
-    page.drawText(t.text,{x:t.x-20,y:page.getHeight()-t.y,size:14});
-  });
-  if(sigInfo.dataURL){
-    const page=pdf.getPages()[sigInfo.page];
-    const png=await pdf.embedPng(sigInfo.dataURL);
-    page.drawImage(png,{x:sigInfo.x-20,y:page.getHeight()-sigInfo.y-60,width:150,height:50});
-  }
-  const finalPdfBytes=await pdf.save();
-  const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download="signed.pdf"; a.click(); URL.revokeObjectURL(a.href);
-};
-
-window.onload=()=>{
-  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-  loadDefaultPDF("양식 1");
-};
-
+window.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";loadDefaultPDF("양식 1");};
 document.getElementById("form1-tab").onclick=()=>loadDefaultPDF("양식 1");
 document.getElementById("form2-tab").onclick=()=>loadDefaultPDF("양식 2");
 </script>
