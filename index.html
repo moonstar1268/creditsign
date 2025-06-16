@@ -4,15 +4,17 @@
   <meta charset="utf-8">
   <title>CreditSign</title>
   <link rel="stylesheet" href="styles.css">
+
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.6/dist/signature_pad.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-  <script src="https://cdn.emailjs.com/sdk/latest/email.min.js"></script>
+
   <style>
     #pdf-preview canvas { border:1px solid #ccc; margin-bottom:10px; }
     .hidden { display:none; }
     #name-img, #signature-img {
-      position:absolute; cursor:move; border:1px solid #333; width:150px;
+      position:absolute; cursor:move; border:1px solid #333;
+      width:150px;
     }
   </style>
 </head>
@@ -40,146 +42,171 @@
   </footer>
 
 <script>
-emailjs.init("e91b6FwpgpxBYA76r");
-
-const pdfUrls={
-  "컨설팅 의뢰":"크레딧사인 기본세팅 1.pdf",
-  "회원가입 신청":"크레딧사인 기본세팅 2.pdf"
+const pdfUrls = {
+  "컨설팅 의뢰": "크레딧사인 기본세팅 1.pdf",
+  "회원가입 신청": "크레딧사인 기본세팅 2.pdf"
 };
 
-let pdfBytes=null;
-let padType="";
-let nameInfo={ page:null, dataURL:null };
-let sigInfo={ page:null, dataURL:null };
+let pdfBytes = null;
+let padType = "";
+let nameInfo = { page: null, dataURL: null };
+let sigInfo  = { page: null, dataURL: null };
 
-async function loadDefaultPDF(name){
-  const wrap=document.getElementById("pdf-preview");
-  wrap.innerHTML="";
+async function loadDefaultPDF(name) {
+  const res = await fetch(pdfUrls[name]);
+  pdfBytes = await res.arrayBuffer();
+  nameInfo = { page: null, dataURL: null };
+  sigInfo  = { page: null, dataURL: null };
   clearElements();
+  const wrap = document.getElementById("pdf-preview");
+  wrap.innerHTML = "";
+  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
 
-  nameInfo={ page:null, dataURL:null };
-  sigInfo={ page:null, dataURL:null };
-
-  const res=await fetch(pdfUrls[name]);
-  pdfBytes=await res.arrayBuffer();
-  const pdf=await pdfjsLib.getDocument({data:pdfBytes}).promise;
-
-  for(let i=1;i<=pdf.numPages;i++){
-    const page=await pdf.getPage(i);
-    const viewport=page.getViewport({scale:1.0});
-    const canvas=document.createElement("canvas");
-    canvas.width=viewport.width; canvas.height=viewport.height;
-    canvas.dataset.page=i-1;
-    canvas.onclick=e=>onCanvasClick(e,canvas);
-    await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const vp = page.getViewport({ scale: 1.0 });
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    canvas.dataset.page = i - 1;
+    canvas.onclick = e => onCanvasClick(e, canvas);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
     wrap.appendChild(canvas);
   }
 }
 
-function clearElements(){
-  document.querySelectorAll("#name-img,#signature-img").forEach(el=>el.remove());
+function clearElements() {
+  document.querySelectorAll("#name-img, #signature-img").forEach(el => el.remove());
   document.getElementById("pad-wrapper").classList.add("hidden");
 }
 
-function onCanvasClick(e,canvas){
-  const pageIndex=Number(canvas.dataset.page);
-  const px=e.pageX,py=e.pageY;
-  if(padType==="name"){
-    placeImage("name-img",nameInfo,pageIndex,px,py);
-  }else if(padType==="sig"){
-    placeImage("signature-img",sigInfo,pageIndex,px,py);
+function onCanvasClick(e, canvas) {
+  const pageIndex = Number(canvas.dataset.page);
+  const px = e.pageX, py = e.pageY;
+  if (padType === "name") {
+    placeImage("name-img", nameInfo, pageIndex, px, py);
+  } else if (padType === "sig") {
+    placeImage("signature-img", sigInfo, pageIndex, px, py);
   }
 }
 
-function placeImage(id,info,page,x,y){
+function placeImage(id, info, page, x, y) {
   document.getElementById(id)?.remove();
-  const img=document.createElement("img");
-  img.id=id;img.src=info.dataURL;
-  img.style.left=x+"px";img.style.top=y+"px";
+  const img = document.createElement("img");
+  img.id = id;
+  img.src = info.dataURL;
+  img.style.left = x + "px";
+  img.style.top  = y + "px";
   document.body.appendChild(img);
   makeDraggable(img);
-  info.page=page;
+  info.page = page;
 }
 
-document.getElementById("form1-tab").onclick=()=>loadDefaultPDF("컨설팅 의뢰");
-document.getElementById("form2-tab").onclick=()=>loadDefaultPDF("회원가입 신청");
+document.getElementById("form1-tab").onclick = () => loadDefaultPDF("컨설팅 의뢰");
+document.getElementById("form2-tab").onclick = () => loadDefaultPDF("회원가입 신청");
 
-document.getElementById("name-add").onclick=()=>{
-  padType="name";openPad();
+document.getElementById("name-add").onclick = () => {
+  padType = "name";
+  openPad();
 };
-document.getElementById("open-pad").onclick=()=>{
-  padType="sig";openPad();
+document.getElementById("open-pad").onclick = () => {
+  padType = "sig";
+  openPad();
 };
 
-function openPad(){
+function openPad() {
   document.getElementById("pad-wrapper").classList.remove("hidden");
   initSignaturePad();
 }
 
-function initSignaturePad(){
-  const canvas=document.getElementById("sig-canvas");
-  if(window.signaturePad){signaturePad.clear();return;}
-  window.signaturePad=new SignaturePad(canvas);
-  document.getElementById("clear").onclick=()=>signaturePad.clear();
-  document.getElementById("save-sig").onclick=()=>{
-    if(signaturePad.isEmpty()){alert("입력하세요");return;}
-    const du=signaturePad.toDataURL();
-    if(padType==="name")nameInfo.dataURL=du;
-    else sigInfo.dataURL=du;
-    document.getElementById("pad-wrapper").classList.add("hidden");
-    alert("PDF에서 위치를 클릭하세요.");
+function initSignaturePad() {
+  const canvas = document.getElementById("sig-canvas");
+  if (!window.signaturePad) {
+    window.signaturePad = new SignaturePad(canvas);
+    document.getElementById("clear").onclick = () => signaturePad.clear();
+    document.getElementById("save-sig").onclick = () => {
+      if (signaturePad.isEmpty()) {
+        alert(padType === "name" ? "이름을 입력하세요" : "서명을 입력하세요");
+        return;
+      }
+      const du = signaturePad.toDataURL();
+      if (padType === "name") nameInfo.dataURL = du;
+      else sigInfo.dataURL = du;
+      document.getElementById("pad-wrapper").classList.add("hidden");
+      alert(padType === "name" ? "이름 배치할 위치를 클릭하세요" : "서명 배치할 위치를 클릭하세요");
+    };
+  } else {
+    signaturePad.clear();
+  }
+}
+
+function makeDraggable(el) {
+  el.onmousedown = e => {
+    const rect = el.getBoundingClientRect();
+    const shiftX = e.clientX - rect.left;
+    const shiftY = e.clientY - rect.top;
+    document.onmousemove = ev => {
+      el.style.left = ev.pageX - shiftX + "px";
+      el.style.top  = ev.pageY - shiftY + "px";
+    };
+    document.onmouseup = () => {
+      document.onmousemove = document.onmouseup = null;
+    };
   };
 }
 
-function makeDraggable(el){
-  el.onmousedown=(e)=>{
-    let shiftX=e.clientX-el.getBoundingClientRect().left;
-    let shiftY=e.clientY-el.getBoundingClientRect().top;
-    document.onmousemove=(e)=>{el.style.left=e.pageX-shiftX+'px';el.style.top=e.pageY-shiftY+'px';};
-    document.onmouseup=()=>{document.onmousemove=null;document.onmouseup=null;};
-  };
-}
+document.getElementById("download").onclick = async () => {
+  const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+  const canvases = document.querySelectorAll("#pdf-preview canvas");
 
-document.getElementById("download").onclick=async()=>{
-  const pdfDoc=await PDFLib.PDFDocument.load(pdfBytes);
-  const canvases=document.querySelectorAll("#pdf-preview canvas");
+  async function embedImage(info, id) {
+    if (!info.dataURL || info.page === null) return;
+    const imgEl = document.getElementById(id);
+    const canvasEl = canvases[info.page];
+    const page = pages[info.page];
 
-  async function embedImage(info,id){
-    if(!info.dataURL||info.page===null)return;
-    const imgEl=document.getElementById(id);
-    const canvasEl=canvases[info.page];
-    const page=pdfDoc.getPages()[info.page];
-    const rect=canvasEl.getBoundingClientRect();
-    const imgRect=imgEl.getBoundingClientRect();
-    const scaleX=page.getWidth()/rect.width;
-    const scaleY=page.getHeight()/rect.height;
-    const x=(imgRect.left-rect.left)*scaleX;
-    const y=page.getHeight()-(imgRect.bottom-rect.top)*scaleY;
-    const png=await pdfDoc.embedPng(info.dataURL);
-    page.drawImage(png,{x,y,width:150,height:50});
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const imgRect    = imgEl.getBoundingClientRect();
+
+    const xCanvas = imgRect.left - canvasRect.left;
+    const yCanvas = imgRect.top  - canvasRect.top;
+
+    const scaleX = page.getWidth()  / canvasRect.width;
+    const scaleY = page.getHeight() / canvasRect.height;
+
+    const x = xCanvas * scaleX;
+    const y = page.getHeight() - (yCanvas * scaleY) - (imgRect.height * scaleY);
+
+    const png = await pdfDoc.embedPng(info.dataURL);
+    page.drawImage(png, {
+      x,
+      y,
+      width:  imgRect.width  * scaleX,
+      height: imgRect.height * scaleY
+    });
   }
 
-  await embedImage(nameInfo,"name-img");
-  await embedImage(sigInfo,"signature-img");
+  await embedImage(nameInfo, "name-img");
+  await embedImage(sigInfo,  "signature-img");
 
-  const finalPdfBytes=await pdfDoc.save();
-  const base64Pdf=btoa(String.fromCharCode(...finalPdfBytes));
-  emailjs.send("service_v5hek3f","template_8u7pmwc",{
-    to_email:"moonstar1268@kaist.ac.kr",
-    attachment:base64Pdf
-  }).then(()=>alert("PDF 이메일 전송 완료!"))
-    .catch(err=>alert("이메일 전송 실패:"+JSON.stringify(err)));
-
-  const blob=new Blob([finalPdfBytes],{type:"application/pdf"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download="signed.pdf";a.click();
-  URL.revokeObjectURL(url);
+  const pdfBytesOut = await pdfDoc.save();
+  const blob = new Blob([pdfBytesOut], { type: "application/pdf" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "signed.pdf";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 3000);
 };
 
-window.onload=()=>{
-  emailjs.init("e91b6FwpgpxBYA76r");
-  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+window.onload = () => {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
   loadDefaultPDF("컨설팅 의뢰");
 };
 </script>
