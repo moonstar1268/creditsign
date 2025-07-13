@@ -196,7 +196,7 @@ downloadBtn.onclick=async()=>{
 
     const a=document.createElement("a"); a.href=dl; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
 
-    await emailjs.send("service_v5hek3f","template_8u7pmwc",{to_email:"moonstar1268@kaist.ac.kr",pdf_link:dl});
+    await emailjs.send("service_v5hek3f","template_8u7pmwc",{to_email:"kkhdadu0416@naver.com",pdf_link:dl});
     alert("✅ 이메일 전송 완료! (Firebase 링크 포함)");
   }catch(err){
     console.error(err); alert("❌ 오류:"+err.message);
