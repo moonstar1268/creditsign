@@ -34,15 +34,18 @@
   </script>
 
   <style>
-    #pdf-preview canvas{border:1px solid #ccc;margin-bottom:10px}
+    #pdf-preview canvas{border:1px solid #ccc;margin-bottom:10px;max-width:100%}
     .hidden{display:none}
     #agree-img,#name-img,#signature-img{position:absolute;cursor:move;border:1px solid #333;width:150px}
     button[disabled]{opacity:.4;cursor:not-allowed}
+    /* ==== 버튼만 숨김 ==== */
+    #form1-tab,#form2-tab{display:none}
   </style>
 </head>
 <body>
   <h1>CreditSign</h1>
 
+  <!-- 전환 버튼: 기능은 유지하되 화면엔 안 보이게 -->
   <button id="form1-tab">컨설팅 의뢰</button>
   <button id="form2-tab">회원가입 신청</button>
   <br/><br/>
@@ -76,6 +79,7 @@ let pdfBytes=null,
 
 async function loadDefaultPDF(name){
   const res=await fetch(encodeURI(pdfUrls[name]));
+  if(!res.ok){alert("PDF 로드 실패: "+res.status);return;}
   pdfBytes=await res.arrayBuffer();
   agreeInfo={page:null,dataURL:null};
   nameInfo ={page:null,dataURL:null};
@@ -172,12 +176,12 @@ downloadBtn.onclick=async()=>{
       if(!info.dataURL||info.page===null) return;
       const img=document.getElementById(id);
       const c=canv[info.page]; const page=pages[info.page];
-      const cRect=c.getBoundingClientRect(); const iRect=img.getBoundingClientRect();
-      const sX=page.getWidth()/cRect.width, sY=page.getHeight()/cRect.height;
-      const x=(iRect.left-cRect.left)*sX;
-      const y=page.getHeight()-(iRect.top-cRect.top)*sY-iRect.height*sY;
+      const cR=c.getBoundingClientRect(); const iR=img.getBoundingClientRect();
+      const sX=page.getWidth()/cR.width, sY=page.getHeight()/cR.height;
+      const x=(iR.left-cR.left)*sX;
+      const y=page.getHeight()-(iR.top-cR.top)*sY-iR.height*sY;
       const png=await pdfDoc.embedPng(info.dataURL);
-      page.drawImage(png,{x,y,width:iRect.width*sX,height:iRect.height*sY});
+      page.drawImage(png,{x,y,width:iR.width*sX,height:iR.height*sY});
     };
     await embed(agreeInfo,"agree-img");
     await embed(nameInfo ,"name-img");
@@ -197,13 +201,13 @@ downloadBtn.onclick=async()=>{
   }catch(err){
     console.error(err); alert("❌ 오류:"+err.message);
   }
-  // downloadBtn.disabled=false; // 필요시 재활성화
+  // downloadBtn.disabled=false; // 필요 시 재활성화
 };
 
 /********************** 5. 최초 로드 *************************/
 window.onload=()=>{
   pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-  loadDefaultPDF("회원가입 신청");
+  loadDefaultPDF("컨설팅 의뢰");
 };
 </script>
 </body>
